@@ -1,0 +1,27 @@
+{
+  "name": "pi-iterm-session",
+  "version": "0.1.0",
+  "description": "Tie pi sessions to iTerm tabs; resume the right session automatically on startup.",
+  "type": "module",
+  "license": "MIT",
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npx --yes tsx@4.20.6 --test test/*.test.ts",
+    "check": "npm run typecheck && npm test"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.75.0"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.10",
+    "typescript": "5.9.3"
+  }
+}
