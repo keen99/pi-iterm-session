@@ -1,6 +1,7 @@
 # pi-iterm-session
 
-[![pi releases tested](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/keen99/pi-iterm-session/main/latest-tested.json)](https://github.com/keen99/pi-iterm-session/actions/workflows/release-watch.yml)
+![release-watch](https://github.com/keen99/pi-iterm-session/actions/workflows/release-watch.yml/badge.svg)
+[![pi tested](https://img.shields.io/github/v/tag/keen99/pi-iterm-session?filter=pi-tested-*&prefix=pi-tested-&label=pi%20tested)](https://github.com/keen99/pi-iterm-session/releases)
 
 Ties pi sessions to iTerm2 tabs so you can find and resume the right session from the right terminal tab.
 

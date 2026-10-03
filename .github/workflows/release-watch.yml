@@ -51,17 +51,16 @@ jobs:
       - name: Release matrix smoke
         if: steps.check.outputs.skip != 'true'
         run: npm run test:matrix
-        # Matrix script writes latest-tested.json (range badge) and the
-        # .latest-tested skip-marker itself, only on a fully green run.
-      - name: Publish badge to main
+        # Matrix script writes the .latest-tested skip-marker (in the cached
+        # .matrix-cache, never committed) only on a fully green run.
+      - name: Tag tested version
         if: steps.check.outputs.skip != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add latest-tested.json
-          RANGE=$(node -p "require('./latest-tested.json').message")
-          git diff --cached --quiet || git commit -m "chore: tested $RANGE [skip ci]"
-          git push
+          VER=$(cat .matrix-cache/.latest-tested)
+          gh release create "pi-tested-$VER" --title "pi tested $VER" \
+            --notes "Release matrix green through pi $VER" || echo "tag exists"
       - name: Summarize
         if: always()
         run: |
