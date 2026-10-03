@@ -38,10 +38,8 @@ Pick one → in-place session switch. Escape → stay. `Start new session` → s
 
 ## Install
 
-Add to `~/.pi/agent/settings.json` packages:
-
-```json
-"/Users/draistrick/git/keen99/pi-iterm-session"
+```bash
+pi install git:github.com/keen99/pi-iterm-session
 ```
 
 Then `/reload`.
