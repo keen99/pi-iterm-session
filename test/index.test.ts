@@ -13,6 +13,7 @@ import itermSession, {
 	ITERM_STATE_TYPE,
 	formatAge,
 	listTabSessions,
+	renderHintLines,
 } from "../src/index.js";
 
 const TAB = "w41t0p0:BDBCF986-D993-46E2-9B5C-4FFBE89DF9A9";
@@ -51,8 +52,9 @@ function harness(options: {
 	cwd?: string;
 	hasUI?: boolean;
 }) {
-	const entries: unknown[] = [];
+	const entries: Array<Record<string, unknown>> = [];
 	const notices: string[] = [];
+	const widgets: Array<{ key: string; content: unknown; placement?: string }> = [];
 	const selectors: string[][] = [];
 	let switchTarget: string | undefined;
 	let selectAnswer: string | undefined;
@@ -63,10 +65,14 @@ function harness(options: {
 			getSessionDir: () => options.sessionDir ?? "/tmp/nonexistent-sessions",
 			getSessionFile: () =>
 				options.sessionFile ?? "/tmp/nonexistent-sessions/current.jsonl",
-			getBranch: () => options.branch ?? [],
+			// Live branch: appendEntry must not mark the session as non-fresh.
+			getBranch: () => options.branch ?? entries,
 		},
 		ui: {
 			notify: (text: string) => notices.push(text),
+			setWidget: (key: string, content: unknown, options?: { placement?: string }) => {
+				widgets.push({ key, content, placement: options?.placement });
+			},
 			select: async (_title: string, labels: string[]) => {
 				selectors.push(labels);
 				return selectAnswer;
@@ -96,6 +102,9 @@ function harness(options: {
 		selectors,
 		get switchTarget() {
 			return switchTarget;
+		},
+		get widgets() {
+			return widgets;
 		},
 		set selectAnswer(value: string | undefined) {
 			selectAnswer = value;
@@ -128,12 +137,14 @@ test("session_start binds tab, hints about history, stays quiet when busy", asyn
 			customType: ITERM_STATE_TYPE,
 			data: { tabId: TAB, cwd: "/tmp/proj" },
 		});
-		assert.match(fresh.notices[0], /1 prior session/);
+		assert.equal(fresh.widgets.length, 1);
+		assert.equal(fresh.widgets[0].key, "iterm-session-hint");
+		assert.equal(fresh.widgets[0].placement, "belowEditor");
 		const busy = harness({
 			env: { ITERM_SESSION_ID: TAB },
 			sessionDir: sessions,
 			sessionFile: join(sessions, "current.jsonl"),
-			branch: [{}],
+			branch: [{ type: "message", message: { role: "user", content: "x" } }],
 		});
 		await busy.start();
 		assert.equal(busy.entries.length, 1);
@@ -230,6 +241,29 @@ test("command without tab, empty tab, and headless listing behave", async () => 
 	} finally {
 		rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+test("renderHintLines: frame aligned at any width, wraps words, scales with digits", () => {
+	const text = "2 prior sessions for this iTerm tab — /iterm-session to resume";
+	for (const width of [80, 50, 30, 20, 12]) {
+		const lines = renderHintLines(text, width);
+		assert.ok(lines.length >= 3);
+		assert.equal(new Set(lines.map((line) => line.length)).size, 1, `aligned at ${width}`);
+		assert.match(lines[0], /^╭─+╮$/);
+		assert.match(lines.at(-1) ?? "", /^╰─+╯$/);
+		assert.ok(lines[1].includes("◀"));
+		assert.ok((lines.at(-2) ?? "").includes("▶"));
+		for (const line of lines.slice(1, -1)) assert.ok(line.startsWith("│") && line.endsWith("│"));
+	}
+	const single = renderHintLines("1 prior session", 80);
+	assert.equal(single.length, 3);
+	assert.ok(single[1].includes("1 prior session"));
+	// Digit growth grows the frame by exactly the added characters; each stays aligned.
+	const nine = renderHintLines("9 prior sessions", 80);
+	const ninetyNine = renderHintLines("99 prior sessions", 80);
+	assert.equal(new Set(nine.map((l) => l.length)).size, 1);
+	assert.equal(new Set(ninetyNine.map((l) => l.length)).size, 1);
+	assert.equal(ninetyNine[0].length, nine[0].length + 1);
 });
 
 test("scan helpers: formatAge buckets and listTabSessions filtering", async () => {

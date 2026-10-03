@@ -11,6 +11,10 @@ export const ITERM_STATE_TYPE = "iterm-session/v1";
 const MARKER = `"${ITERM_STATE_TYPE}"`;
 const ITERM_SESSION_ENV = "ITERM_SESSION_ID";
 const NEW_SESSION_LABEL = "Start new session";
+const HINT_WIDGET_KEY = "iterm-session-hint";
+/** Metadata entries (headers, labels, other extensions' custom pins) don't
+ *  count; real conversation history does. Fresh = zero of these. */
+const CONTENT_ENTRY_TYPES = new Set(["message", "custom_message", "compaction"]);
 const PREVIEW_LIMIT = 60;
 const SCAN_FILE_LIMIT = 8 * 1024 * 1024; // per-file safety cap
 const SCAN_CONCURRENCY = 8;
@@ -73,22 +77,52 @@ export default function itermSession(
 	pi.on("session_start", async (_event, ctx) => {
 		const tabId = env()[ITERM_SESSION_ENV];
 		if (!tabId) return;
+		// Read freshness BEFORE binding: our own custom entry would mark the
+		// session as having content and suppress the hint forever.
+		const hasContent = ctx.sessionManager
+			.getBranch()
+			.some((entry) => CONTENT_ENTRY_TYPES.has(entry.type));
 		pi.appendEntry(ITERM_STATE_TYPE, {
 			tabId,
 			cwd: ctx.sessionManager.getCwd(),
 		});
 		if (!ctx.hasUI) return;
-		if (ctx.sessionManager.getBranch().length > 0) return;
+		if (hasContent) return;
 		const sessions = await listTabSessions({
 			sessionDir: ctx.sessionManager.getSessionDir(),
 			tabId,
 			currentFile: ctx.sessionManager.getSessionFile(),
 		});
-		if (sessions.length > 0)
-			ctx.ui.notify(
-				`${sessions.length} prior session(s) for this iTerm tab — /iterm-session to resume.`,
-				"info",
-			);
+		if (sessions.length > 0) showHint(ctx, sessions.length);
+	});
+
+	/** Bottom callout: accent-framed, dismissed by use or first turn. */
+	function showHint(ctx: ExtensionContext, count: number): void {
+		const noun = count === 1 ? "session" : "sessions";
+		const text = `${count} prior ${noun} for this iTerm tab — /iterm-session to resume`;
+		ctx.ui.setWidget(
+			HINT_WIDGET_KEY,
+			(tui, theme) => ({
+				render: (width: number) =>
+					renderHintLines(text, width).map((line) =>
+						theme.fg("accent", line),
+					),
+				invalidate: () => {},
+			}),
+			{ placement: "belowEditor" },
+		);
+	}
+
+	function clearHint(ctx: ExtensionContext): void {
+		try {
+			ctx.ui.setWidget(HINT_WIDGET_KEY, undefined);
+		} catch {
+			/* already gone */
+		}
+	}
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		clearHint(ctx);
 	});
 
 	pi.registerCommand("iterm-session", {
@@ -125,6 +159,7 @@ export default function itermSession(
 					);
 					return;
 				}
+				clearHint(ctx);
 				await offerSelector(ctx, tabId);
 			} catch (error) {
 				ctx.ui.notify(
@@ -145,6 +180,59 @@ export function formatAge(ms: number): string {
 	const days = Math.round(hours / 24);
 	if (days < 7) return `${days}d ago`;
 	return `${Math.round(days / 7)}w ago`;
+}
+
+/**
+ * Frame the hint for a viewport width, wrapping words across framed lines
+ * when they do not fit. All frame lines share one measured width, so digits
+ * in the count and narrow terminals stay in sync. First line carries ◀,
+ * last carries ▶; continuation lines indent under the ◀.
+ */
+export function renderHintLines(text: string, width: number): string[] {
+	const maxInner = Math.max(4, width - 2);
+	// " ◀ " prefix on the first line and " ▶ " suffix on the last: reserve 6.
+	const wrapWidth = Math.max(1, maxInner - 6);
+	const wrapped: string[] = [];
+	let current = "";
+	for (const word of text.split(" ")) {
+		let piece = word;
+		// Hard-split words longer than the wrap width.
+		while (piece.length > wrapWidth) {
+			if (current) {
+				wrapped.push(current);
+				current = "";
+			}
+			wrapped.push(piece.slice(0, wrapWidth));
+			piece = piece.slice(wrapWidth);
+		}
+		if (!piece) continue;
+		if (!current) current = piece;
+		else if (current.length + 1 + piece.length <= wrapWidth)
+			current += ` ${piece}`;
+		else {
+			wrapped.push(current);
+			current = piece;
+		}
+	}
+	if (current) wrapped.push(current);
+	if (wrapped.length === 0) wrapped.push("");
+	const content = wrapped.map((line, index) => {
+		const prefix = index === 0 ? " ◀ " : "   ";
+		const suffix = index === wrapped.length - 1 ? " ▶ " : "   ";
+		return prefix + line + suffix;
+	});
+	const innerWidth = Math.min(
+		maxInner,
+		Math.max(...content.map((line) => line.length)),
+	);
+	const bar = "─".repeat(innerWidth);
+	return [
+		`╭${bar}╮`,
+		...content.map(
+			(line) => `│${line}${" ".repeat(innerWidth - line.length)}│`,
+		),
+		`╰${bar}╯`,
+	];
 }
 
 function truncate(text: string): string {
