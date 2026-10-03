@@ -61,7 +61,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VER=$(cat .matrix-cache/.latest-tested)
-          gh release create "pi-tested-$VER" --title "pi tested $VER" \
+          gh release create "$VER" --title "pi tested $VER" \
             --notes "Release matrix green through pi $VER" || echo "tag exists"
       - name: Summarize
         if: always()
