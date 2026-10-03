@@ -10,6 +10,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Sync tested tags creates releases via GITHUB_TOKEN — repo default is read-only.
+permissions:
+  contents: write
+
 jobs:
   check:
     name: Typecheck + unit tests
