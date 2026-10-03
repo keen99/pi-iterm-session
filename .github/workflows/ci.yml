@@ -45,3 +45,20 @@ jobs:
           restore-keys: |
             pi-matrix-
       - run: npm run test:matrix
+      # Any green matrix run on main that tested a newer pi than the newest
+      # existing pi-tested release tags it immediately — badge updates on
+      # push, not just on the nightly cron.
+      - name: Tag tested version
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VER=$(cat .matrix-cache/.latest-tested)
+          EXISTING=$(gh api repos/$GH_REPO/releases --jq '[.[] | select(.name | startswith("pi tested")) | .tag_name] | sort_by(.) | last // ""')
+          NEWEST=$(printf '%s\n%s\n' "$EXISTING" "$VER" | sort -V | tail -1)
+          if [ "$NEWEST" = "$VER" ]; then
+            gh release create "$VER" --title "pi tested $VER" --notes "Release matrix green through pi $VER" || echo "tag exists"
+          else
+            echo "already tested through $EXISTING; matrix tested $VER"
+          fi
