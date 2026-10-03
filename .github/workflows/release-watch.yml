@@ -49,7 +49,17 @@ jobs:
       - name: Mark release as tested
         if: steps.check.outputs.skip != 'true'
         run: |
-          node --input-type=module -e "console.log((await (await fetch('https://registry.npmjs.org/@earendil-works%2fpi-coding-agent')).json())['dist-tags'].latest)" > .matrix-cache/.latest-tested
+          LATEST=$(node --input-type=module -e "console.log((await (await fetch('https://registry.npmjs.org/@earendil-works%2fpi-coding-agent')).json())['dist-tags'].latest)")
+          echo "$LATEST" > .matrix-cache/.latest-tested
+          printf '{"schemaVersion":1,"label":"pi tested through","message":"%s","color":"brightgreen"}' "$LATEST" > latest-tested.json
+      - name: Publish badge to main
+        if: steps.check.outputs.skip != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add latest-tested.json
+          git diff --cached --quiet || git commit -m "chore: tested through $(cat .matrix-cache/.latest-tested) [skip ci]"
+          git push
       - name: Summarize
         if: always()
         run: |
