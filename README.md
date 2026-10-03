@@ -39,7 +39,7 @@ Pick one → in-place session switch. Escape → stay. `Start new session` → s
 ## Install
 
 ```bash
-pi install git:github.com/keen99/pi-iterm-session
+pi install git:git@github.com:keen99/pi-iterm-session
 ```
 
 Then `/reload`.
