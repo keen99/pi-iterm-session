@@ -25,14 +25,13 @@ const results = JSON.parse(readFileSync(resultsPath, 'utf8'));
 const repo = process.env.GH_REPO ?? 'keen99/pi-iterm-session';
 
 const gh = (args) => execFileSync('gh', args, { encoding: 'utf8' });
-const exists = (tag) => {
-	try {
-		gh(['release', 'view', tag, '--repo', repo]);
-		return true;
-	} catch {
-		return false;
-	}
-};
+// One paginated list call instead of a view per version.
+const existing = new Set(
+	gh(['api', `repos/${repo}/releases?per_page=100`, '--paginate', '--jq', '.[].tag_name'])
+		.split('\n')
+		.filter(Boolean),
+);
+const exists = (tag) => existing.has(tag);
 
 let created = 0;
 let deleted = 0;
@@ -43,12 +42,14 @@ for (const { version, ok } of results) {
 		created++;
 		if (!dry) {
 			gh(['release', 'create', version, '--repo', repo, '--title', `pi tested ${version}`, '--notes', `Release matrix green through pi ${version}`]);
+			existing.add(version);
 		}
 	} else if (!ok && have) {
 		console.log(`delete pi-tested release ${version} (matrix FAIL)`);
 		deleted++;
 		if (!dry) {
 			gh(['release', 'delete', version, '--repo', repo, '--yes', '--cleanup-tag']);
+			existing.delete(version);
 		}
 	}
 }
