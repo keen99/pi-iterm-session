@@ -55,14 +55,12 @@ jobs:
         # .matrix-cache, never committed) only on a fully green run.
       # Unconditional (not gated on skip): self-heals a missing tag on the
       # wake-quit path — idempotent via release-exists || true.
-      - name: Tag tested version
-        if: github.ref == 'refs/heads/main'
+      - name: Sync tested tags
+        if: always() && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          VER=$(cat .matrix-cache/.latest-tested)
-          gh release create "$VER" --title "pi tested $VER" \
-            --notes "Release matrix green through pi $VER" || echo "tag exists"
+          GH_REPO: ${{ github.repository }}
+        run: node test/sync-tested-tags.mjs
       - name: Summarize
         if: always()
         run: |

@@ -59,6 +59,7 @@ function resolveVersions() {
 }
 
 let failed = 0;
+const results = [];
 const versions = await resolveVersions();
 for (const version of versions) {
   const prefix = join(cacheRoot, version);
@@ -70,6 +71,7 @@ for (const version of versions) {
       console.log(`[matrix] ${version}: INSTALL FAILED`);
       console.error(install.stderr?.slice(0, 500));
       failed++;
+      results.push({ version, ok: false });
       continue;
     }
   }
@@ -82,12 +84,20 @@ for (const version of versions) {
   const output = `${smoke.stdout ?? ''}${smoke.stderr ?? ''}`.trim();
   if (smoke.status === 0) {
     console.log(`[matrix] ${version}: PASS`);
+    results.push({ version, ok: true });
   } else {
     failed++;
     console.log(`[matrix] ${version}: FAIL (exit ${smoke.status})`);
     console.error(output.slice(0, 2000));
+    results.push({ version, ok: false });
   }
 }
+
+// Per-version truth, written even when versions fail — the tag-sync step
+// uses this to create/delete release tags so the badge never claims a
+// version the current code fails on.
+mkdirSync(cacheRoot, { recursive: true });
+writeFileSync(join(cacheRoot, 'matrix-results.json'), `${JSON.stringify(results, null, 2)}\n`);
 
 if (failed > 0) {
   console.error(`[matrix] ${failed}/${versions.length} version(s) failed`);
