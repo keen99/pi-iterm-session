@@ -41,7 +41,7 @@ for (const { version, ok } of results) {
 		console.log(`create pi-tested release ${version}`);
 		created++;
 		if (!dry) {
-			gh(['release', 'create', version, '--repo', repo, '--title', `pi tested ${version}`, '--notes', `Release matrix green through pi ${version}`]);
+			gh(['release', 'create', version, '--repo', repo, '--title', `pi tested 0.75.0 → ${version}`, '--notes', `Release matrix green through pi 0.75.0 → ${version} (${results.length} releases tested)`]);
 			existing.add(version);
 		}
 	} else if (!ok && have) {
