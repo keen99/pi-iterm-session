@@ -52,8 +52,14 @@ Then `/reload`.
 
 ```sh
 npm run check       # typecheck + unit tests (fake fs, no pi process)
-node test/rpc-smoke.mjs   # real pinned-pi load + command registration
+npm run test:matrix # deep smoke on every published pi release >= 0.75.0
 ```
+
+The matrix boots each pinned pi release in RPC mode with the extension
+loaded and drives the real switch_session flow: fixture sessions on disk,
+RPC verbs against a real process, assertions on the persisted session
+files. Cached installs live in `.matrix-cache/` and are reused across
+runs; new pi releases are picked up automatically.
 
 `PI_TEST_BIN` overrides the pi binary in the smoke test. Tests use synthetic sessions in temp dirs; never touches real sessions.
 
