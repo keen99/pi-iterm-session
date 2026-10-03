@@ -39,7 +39,11 @@ Pick one → in-place session switch. Escape → stay. `Start new session` → s
 ## Install
 
 ```bash
+# authenticated (ssh — private repos)
 pi install git:git@github.com:keen99/pi-iterm-session
+
+# public (https)
+pi install git:github.com/keen99/pi-iterm-session
 ```
 
 Then `/reload`.
