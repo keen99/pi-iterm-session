@@ -176,12 +176,12 @@ test("command offers selector, switches on pick, respects new-session and escape
 			sessionDir: sessions,
 			sessionFile: join(sessions, "current.jsonl"),
 		});
-		app.selectAnswer = "1m ago · refactor storage";
+		app.selectAnswer = "1m ago · new · refactor storage";
 		await app.command("");
 		assert.equal(app.selectors.length, 1);
 		assert.deepEqual(app.selectors[0], [
-			"1m ago · refactor storage",
-			"2h ago · fix auth middleware",
+			"1m ago · new · refactor storage",
+			"2h ago · old · fix auth middleware",
 			"Start new session",
 		]);
 		assert.match(app.switchTarget ?? "", /new\.jsonl$/);

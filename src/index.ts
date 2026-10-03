@@ -21,6 +21,7 @@ const SCAN_CONCURRENCY = 8;
 
 export type TabSessionInfo = {
 	path: string;
+	id: string;
 	mtimeMs: number;
 	preview: string;
 };
@@ -53,18 +54,18 @@ export default function itermSession(
 			currentFile: manager.getSessionFile(),
 		});
 		if (sessions.length === 0) {
-			ctx.ui.notify("No sessions bound to this iTerm tab.", "info");
+			ctx.ui.notify("No sessions bound to this iTerm session.", "info");
 			return;
 		}
 		const now = Date.now();
 		const labels = sessions.map(
 			(session) =>
-				`${formatAge(now - session.mtimeMs)} · ${session.preview || "(no user messages)"}`,
+				`${formatAge(now - session.mtimeMs)} · ${session.id} · ${session.preview || "(no user messages)"}`,
 		);
 		labels.push(NEW_SESSION_LABEL);
 		const paths = [...sessions.map((session) => session.path), undefined];
 		const chosen = await ctx.ui.select(
-			"Sessions from this iTerm tab — resume one?",
+			"Sessions from this iTerm session — resume one?",
 			labels,
 		);
 		if (chosen === undefined) return;
@@ -99,7 +100,7 @@ export default function itermSession(
 	/** Bottom callout: accent-framed, dismissed by use or first turn. */
 	function showHint(ctx: ExtensionContext, count: number): void {
 		const noun = count === 1 ? "session" : "sessions";
-		const text = `${count} prior ${noun} for this iTerm tab — /iterm-session to resume`;
+		const text = `${count} prior ${noun} for this iTerm session — /iterm-session to resume`;
 		ctx.ui.setWidget(
 			HINT_WIDGET_KEY,
 			(tui, theme) => ({
@@ -127,7 +128,7 @@ export default function itermSession(
 
 	pi.registerCommand("iterm-session", {
 		description:
-			"Pick a session bound to this iTerm tab and switch to it. With a tab id argument, shows that tab's sessions instead.",
+			"Pick a session bound to this iTerm session and switch to it. With a session id argument, shows that session's sessions instead.",
 		handler: async (args, ctx) => {
 			try {
 				const requested = args.trim();
@@ -135,7 +136,7 @@ export default function itermSession(
 					requested || env()[ITERM_SESSION_ENV];
 				if (!tabId) {
 					ctx.ui.notify(
-						"Not inside an iTerm tab (no ITERM_SESSION_ID).",
+						"Not inside an iTerm session (no ITERM_SESSION_ID).",
 						"info",
 					);
 					return;
@@ -151,7 +152,7 @@ export default function itermSession(
 							? `Sessions for ${tabId}:\n${sessions
 									.map(
 										(session) =>
-											`${formatAge(Date.now() - session.mtimeMs)} · ${session.preview || "(no user messages)"}`,
+											`${formatAge(Date.now() - session.mtimeMs)} · ${session.id} · ${session.preview || "(no user messages)"}`,
 									)
 									.join("\n")}`
 							: `No sessions bound to ${tabId}.`,
@@ -242,8 +243,15 @@ function truncate(text: string): string {
 		: flat;
 }
 
+/** Session files are `<timestamp>_<uuid>.jsonl`; short id = first 8 hex. */
+function shortSessionId(path: string): string {
+	const stem = basename(path).replace(/\.jsonl$/i, "");
+	const uuid = stem.match(/([0-9a-fA-F-]{36})$/)?.[1] ?? stem;
+	return uuid.replace(/-/g, "").slice(0, 8);
+}
+
 /**
- * One pass over a session file: does it carry a binding for this tab?
+ * One pass over a session file: does it carry a binding for this iTerm session?
  * Streams raw chunks and only JSON-parses lines once the marker appears,
  * so unbound files cost a cheap substring scan.
  */
@@ -343,7 +351,7 @@ async function readPreview(path: string): Promise<string> {
 	}
 }
 
-/** Sessions bound to this iTerm tab in one project session dir, newest first. */
+/** Sessions bound to this iTerm session in one project session dir, newest first. */
 export async function listTabSessions(options: {
 	sessionDir: string;
 	tabId: string;
@@ -382,7 +390,7 @@ export async function listTabSessions(options: {
 				stat(path),
 				readPreview(path),
 			]);
-			return { path, mtimeMs: fileStat.mtimeMs, preview };
+			return { path, id: shortSessionId(path), mtimeMs: fileStat.mtimeMs, preview };
 		}),
 	);
 	infos.sort((left, right) => right.mtimeMs - left.mtimeMs);
