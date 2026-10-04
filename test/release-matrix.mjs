@@ -106,17 +106,6 @@ if (failed > 0) {
 
 // Badge + skip-marker reflect the actual tested range, not just the newest
 // release. Written only after a fully green run.
-const oldest = versions[0];
 const newest = versions[versions.length - 1];
-mkdirSync(cacheRoot, { recursive: true });
-writeFileSync(
-  join(root, 'latest-tested.json'),
-  `${JSON.stringify({
-    schemaVersion: 1,
-    label: 'pi tested',
-    message: `${oldest} → ${newest}`,
-    color: 'brightgreen',
-  })}\n`,
-);
 writeFileSync(join(cacheRoot, '.latest-tested'), `${newest}\n`);
 console.log(`[matrix] all ${versions.length} version(s) pass (${oldest} → ${newest})`);
