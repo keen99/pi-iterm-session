@@ -9,7 +9,7 @@
 // code fails on. All gh failures are loud — no swallowing.
 //
 // Usage: node test/sync-tested-tags.mjs [--dry-run]
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -18,7 +18,14 @@ const dry = process.argv.includes('--dry-run');
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const resultsPath = join(root, '.matrix-cache', 'matrix-results.json');
 if (!existsSync(resultsPath)) {
-	console.error('no matrix-results.json — run the matrix first');
+	console.error(`no matrix-results.json at ${resultsPath}`);
+	console.error(`cwd=${process.cwd()}`);
+	try {
+		console.error('workspace .matrix-cache listing:');
+		for (const f of readdirSync(join(root, '.matrix-cache'))) console.error('  ' + f);
+	} catch (e) {
+		console.error(`  .matrix-cache unreadable: ${e.message}`);
+	}
 	process.exit(1);
 }
 const results = JSON.parse(readFileSync(resultsPath, 'utf8'));
@@ -35,13 +42,31 @@ const exists = (tag) => existing.has(tag);
 
 let created = 0;
 let deleted = 0;
+function releaseForTag(tag) {
+	try {
+		gh(['api', `repos/${repo}/releases/tags/${tag}`, '--jq', '.id']);
+		return true;
+	} catch {
+		return false;
+	}
+}
 for (const { version, ok } of results) {
 	const have = exists(version);
 	if (ok && !have) {
 		console.log(`create pi-tested release ${version}`);
 		created++;
 		if (!dry) {
-			gh(['release', 'create', version, '--repo', repo, '--title', `pi tested 0.75.0 → ${version}`, '--notes', `Release matrix green through pi 0.75.0 → ${version} (${results.length} releases tested)`]);
+			try {
+				gh(['release', 'create', version, '--repo', repo, '--title', `pi tested 0.75.0 → ${version}`, '--notes', `Release matrix green through pi 0.75.0 → ${version} (${results.length} releases tested)`]);
+			} catch (e) {
+				// Tag can outlive a deleted release (deletion race) — GitHub then
+				// 422s with "tag_name already exists". If the release now exists,
+				// that's success; if only the orphan tag remains, drop it and retry.
+				if (!String(e).includes('already exists') || !releaseForTag(version)) {
+					try { gh(['api', '-X', 'DELETE', `repos/${repo}/git/refs/tags/${version}`]); } catch { /* nothing to clean */ }
+					gh(['release', 'create', version, '--repo', repo, '--title', `pi tested 0.75.0 → ${version}`, '--notes', `Release matrix green through pi 0.75.0 → ${version} (${results.length} releases tested)`]);
+				}
+			}
 			existing.add(version);
 		}
 	} else if (!ok && have) {
